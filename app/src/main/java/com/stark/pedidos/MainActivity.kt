@@ -1,95 +1,165 @@
 package com.stark.pedidos
 
+
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+
 import com.stark.pedidos.ui.theme.PedidosTheme
 
+
+
+enum class UserRole {
+    ADMIN,
+    PROVEEDOR,
+    CLIENTE
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             PedidosTheme {
-                LoginContent()
+                val navController = rememberNavController()
 
+                NavHost(navController = navController, startDestination = Screen.Login.route) {
+                    composable(Screen.Login.route) {
+                        LoginScreenSimulator(navController)
+                    }
+                    composable(Screen.Admin.route) {
+                        MainAdminScreen()
+                    }
+                    composable(Screen.Proveedor.route) {
+                        MainClienteScreen()
+                    }
+                    composable(Screen.Cliente.route) {
+                        MainProceedorScreen()
+                    }
+                }
             }
         }
+
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginContent(){
-    Box( modifier = Modifier.fillMaxSize()){
-        Image(
-            modifier = Modifier.fillMaxSize(),
-            painter = painterResource(id = R.drawable.fondo),
-            contentDescription = "imagen de fondo",
-            contentScale =  ContentScale.Crop,
-            colorFilter = ColorFilter.colorMatrix(
-                ColorMatrix().apply {
-                    setToScale(0.3f, 0.5f,0.5f,1f)
-                })
+fun LoginScreenSimulator(navController: NavController) {
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var loginMessage by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Iniciar Sesión", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("Usuario") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(top= 50.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
 
-        ) {
-            Image(
-                modifier = Modifier
-                    .height(100.dp)
-                    .width(100.dp),
+        Spacer(modifier = Modifier.height(12.dp))
 
-                painter = painterResource(id = R.drawable.acceso),
-                contentDescription = "Logo dx"
-            )
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Contraseña") },
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        loginMessage?.let { message ->
             Text(
-                modifier = Modifier.padding( bottom = 50.dp ),
-                text =  "Pedidos Ya!",
-                fontWeight =  FontWeight.Bold,
-                color = Color.White,
-                fontSize = 20.sp
+                text = message,
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium
             )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
+        Button(
+            onClick = {
+                val detectedRole = getRoleForCredentials(username, password)
+                if (detectedRole != null) {
+                    loginMessage = "¡Login exitoso como ${detectedRole.name}!"
+                    //isError = false
+                        when (detectedRole) {
+                            UserRole.ADMIN -> navController.navigate(Screen.Admin.route)
+                            UserRole.PROVEEDOR -> navController.navigate(Screen.Proveedor.route)
+                            UserRole.CLIENTE -> navController.navigate(Screen.Cliente.route)
+                        }
+
+                    when (detectedRole) {
+                        UserRole.ADMIN -> Log.d("NAVEGACION", "Ir a pantalla ADMIN")
+                        UserRole.PROVEEDOR -> Log.d("NAVEGACION", "Ir a pantalla PROVEEDOR")
+                        UserRole.CLIENTE -> Log.d("NAVEGACION", "Ir a pantalla CLIENTE")
+                    }
+                } else {
+                    loginMessage = "Error: Usuario o contraseña incorrecto."
+                    isError = true
+                    Log.w("LoginSim", "Fallo: Usuario: $username, Contraseña: $password")
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Ingresar")
         }
     }
-
-}
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
 }
 
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-fun GreetingPreview() {
-    PedidosTheme {
-        Greeting("Android")
+// Detecta el rol según las credenciales
+fun getRoleForCredentials(username: String, password: String): UserRole? {
+    return when {
+        username.equals("admin", ignoreCase = true) && password == "1234" -> UserRole.ADMIN
+        username.equals("proveedor", ignoreCase = true) && password == "1234" -> UserRole.PROVEEDOR
+        username.equals("cliente", ignoreCase = true) && password == "1234" -> UserRole.CLIENTE
+        else -> null
     }
 }
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 640)
+@Composable
+fun DefaultPreviewLoginSimulator() {
+    PedidosTheme {
+        val navController = rememberNavController()
+        Surface(color = MaterialTheme.colorScheme.background) {
+        }
+    }
+}
+
+sealed class Screen(val route: String) {
+    object Login : Screen("login")
+    object Admin : Screen("admin")
+    object Proveedor : Screen("proveedor")
+    object Cliente : Screen("cliente")
+
+}
+
+
+
